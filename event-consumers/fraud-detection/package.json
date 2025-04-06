@@ -1,0 +1,19 @@
+{
+  "name": "fraud-detection",
+  "version": "1.0.0",
+  "description": "Fraud Detection Plugin for Distributed POS System",
+  "main": "plugin.js",
+  "scripts": {
+    "start": "node plugin.js",
+    "test": "node test-events.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "kafkajs": "^2.2.4",
+    "ioredis": "^5.3.2",
+    "uuid": "^9.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
