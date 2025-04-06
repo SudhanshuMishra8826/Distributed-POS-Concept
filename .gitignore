@@ -19,3 +19,8 @@ event-generator/.env
 # any virtual environment
 venv/
 *.venv
+
+
+# Node modules
+node_modules/
+package-lock.json

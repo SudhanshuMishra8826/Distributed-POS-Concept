@@ -1,0 +1,18 @@
+{
+  "name": "purchase-recommender",
+  "version": "1.0.0",
+  "description": "Purchase Recommender plugin for POS system",
+  "main": "plugin.js",
+  "scripts": {
+    "start": "node plugin.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "kafkajs": "^2.2.4",
+    "dotenv": "^16.3.1",
+    "redis": "^4.6.10"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
