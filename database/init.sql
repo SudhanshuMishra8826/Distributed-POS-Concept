@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS plugins (
+    id VARCHAR(255) PRIMARY KEY,
+    active BOOLEAN NOT NULL,
+    filters JSON,
+    actions JSON
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS events (
+    event_id VARCHAR(255) PRIMARY KEY,
+    type VARCHAR(255),
+    store_id VARCHAR(255),
+    data JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4; 
