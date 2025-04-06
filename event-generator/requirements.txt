@@ -1,0 +1,6 @@
+kafka-python==1.4.7
+python-dotenv==0.19.2
+pydantic==1.10.13
+faker==18.13.0
+pytest==7.4.3
+pytest-cov==4.1.0 
