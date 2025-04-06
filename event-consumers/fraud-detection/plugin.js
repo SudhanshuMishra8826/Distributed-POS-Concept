@@ -10,6 +10,7 @@ require('dotenv').config();
 const { Kafka } = require('kafkajs');
 const Redis = require('ioredis');
 const { v4: uuidv4 } = require('uuid');
+const { checkPluginStatus, logPluginInactive } = require('../utils');
 
 // Configure logging
 const log = {
@@ -18,6 +19,9 @@ const log = {
     error: (message) => console.log(`[ERROR] ${new Date().toISOString()} - ${message}`),
     debug: (message) => console.log(`[DEBUG] ${new Date().toISOString()} - ${message}`)
 };
+
+// Plugin ID
+const PLUGIN_ID = 'fraud-detection';
 
 class FraudDetectionPlugin {
     constructor() {
@@ -100,6 +104,13 @@ class FraudDetectionPlugin {
 
     async processEvent(event) {
         try {
+            // Check if the plugin is active
+            const isActive = await checkPluginStatus(PLUGIN_ID);
+            if (!isActive) {
+                logPluginInactive(PLUGIN_ID, event);
+                return;
+            }
+
             // Log every valid event
             log.info(`Received event: ${JSON.stringify(event)}`);
 

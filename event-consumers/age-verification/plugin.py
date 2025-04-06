@@ -11,10 +11,16 @@ import json
 import uuid
 import logging
 import asyncio
+import sys
 from datetime import datetime
 from dotenv import load_dotenv
 from kafka import KafkaConsumer, KafkaProducer
 import redis
+import requests
+
+# Add parent directory to path to import utils
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils import check_plugin_status, log_plugin_inactive
 
 # Load environment variables
 load_dotenv()
@@ -25,6 +31,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('age-verification-plugin')
+
+# Plugin ID
+PLUGIN_ID = 'age-verification'
 
 # Age-restricted item IDs and their minimum age requirements
 AGE_RESTRICTED_ITEM_IDS = {
@@ -104,6 +113,11 @@ class AgeVerificationPlugin:
     async def process_event(self, event):
         """Process an event"""
         try:
+            # Check if the plugin is active
+            if not check_plugin_status(PLUGIN_ID):
+                log_plugin_inactive(PLUGIN_ID, event)
+                return
+                
             # Log every valid event
             logger.info(f"Received event: {json.dumps(event)}")
             

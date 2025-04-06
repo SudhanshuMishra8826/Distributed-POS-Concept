@@ -1,0 +1,16 @@
+{
+  "name": "event-consumers",
+  "version": "1.0.0",
+  "description": "This directory contains event consumer plugins for the Distributed POS system. Each plugin is responsible for processing specific types of events from the Kafka message queue.",
+  "main": "utils.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.8.4",
+    "ioredis": "^5.6.0"
+  }
+}

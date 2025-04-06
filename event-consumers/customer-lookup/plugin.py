@@ -4,6 +4,7 @@ import json
 import time
 import signal
 import logging
+import sys
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -11,6 +12,11 @@ from dotenv import load_dotenv
 from kafka import KafkaConsumer, KafkaProducer
 from redis import Redis
 import uuid
+import requests
+
+# Add parent directory to path to import utils
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils import check_plugin_status, log_plugin_inactive
 
 # Configure logging
 logging.basicConfig(
@@ -19,6 +25,9 @@ logging.basicConfig(
     datefmt='%Y/%m/%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+
+# Plugin ID
+PLUGIN_ID = 'customer-lookup'
 
 class CustomerData:
     """Customer information data structure"""
@@ -187,6 +196,11 @@ class CustomerLookupPlugin:
     
     def handle_customer_identified(self, customer_id: str, basket_id: str) -> None:
         """Handle customer identification event"""
+        # Check if the plugin is active
+        if not check_plugin_status(PLUGIN_ID):
+            log_plugin_inactive(PLUGIN_ID, {"customer_id": customer_id, "basket_id": basket_id})
+            return
+            
         customer_data = None
         
         # Try to get customer data from Redis cache first
@@ -248,14 +262,13 @@ class CustomerLookupPlugin:
                                 
                                 if customer_id and basket_id:
                                     self.handle_customer_identified(customer_id, basket_id)
-                                else:
-                                    logger.warning("Received customer_identified event with missing customer_id or basket_id")
                         except Exception as e:
                             logger.error(f"Error processing message: {e}")
         except Exception as e:
             logger.error(f"Error in consumer loop: {e}")
-        finally:
-            self.close()
+            if self.running:
+                time.sleep(5)
+                self.start()
     
     def close(self) -> None:
         """Close connections"""
@@ -263,11 +276,12 @@ class CustomerLookupPlugin:
             self.consumer.close()
             self.producer.close()
             self.redis_client.close()
+            logger.info("Connections closed")
         except Exception as e:
             logger.error(f"Error closing connections: {e}")
 
 def main():
-    """Main entry point"""
+    """Main function"""
     plugin = CustomerLookupPlugin()
     plugin.start()
 

@@ -1,5 +1,8 @@
 import json
 import os
+import sys
+import requests
+import logging
 from datetime import datetime
 from typing import Dict, Optional
 from dotenv import load_dotenv
@@ -10,8 +13,26 @@ from pydantic import BaseModel
 import redis
 import pickle
 
+# Add parent directory to path to import utils
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils import check_plugin_status, log_plugin_inactive
+
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('employee-tracker.log')
+    ]
+)
+logger = logging.getLogger('employee-tracker')
+
+# Plugin ID
+PLUGIN_ID = 'employee-tracker'
 
 class EmployeeSession(BaseModel):
     employee_id: str
@@ -57,6 +78,8 @@ class EmployeeTimeTracker:
         
         # Subscribe to relevant topics
         self.consumer.subscribe(["pos_events"])
+        
+        logger.info("Employee Time Tracker initialized successfully")
 
     def _get_active_session(self, employee_id: str) -> Optional[EmployeeSession]:
         """Get active session from Redis."""
@@ -72,10 +95,12 @@ class EmployeeTimeTracker:
             pickle.dumps(session),
             ex=86400  # Expire after 24 hours
         )
+        logger.debug(f"Active session stored for employee {employee_id}")
 
     def _delete_active_session(self, employee_id: str):
         """Delete active session from Redis."""
         self.redis_client.delete(f"employee_session:{employee_id}")
+        logger.debug(f"Active session deleted for employee {employee_id}")
 
     def _create_tables(self):
         """Create necessary database tables if they don't exist."""
@@ -95,8 +120,9 @@ class EmployeeTimeTracker:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
             self.db.commit()
+            logger.info("Database tables created or verified successfully")
         except Error as e:
-            print(f"Error creating tables: {e}")
+            logger.error(f"Error creating tables: {e}")
         finally:
             cursor.close()
 
@@ -105,10 +131,13 @@ class EmployeeTimeTracker:
         employee_id = event["employee_id"]
         terminal_id = event["terminal_id"]
         
+        logger.info(f"Processing login event for employee {employee_id} at terminal {terminal_id}")
+        
         # Check if employee is already logged in at another terminal
         existing_session = self._get_active_session(employee_id)
         if existing_session and existing_session.terminal_id != terminal_id:
             # Auto-logout from previous terminal
+            logger.info(f"Employee {employee_id} already logged in at terminal {existing_session.terminal_id}, auto-logout initiated")
             self._handle_employee_logout({
                 "employee_id": employee_id,
                 "terminal_id": existing_session.terminal_id
@@ -133,8 +162,9 @@ class EmployeeTimeTracker:
                 VALUES (%s, %s, %s)
             """, (employee_id, terminal_id, session.login_time))
             self.db.commit()
+            logger.info(f"Employee {employee_id} login recorded in database at terminal {terminal_id}")
         except Error as e:
-            print(f"Error logging employee login: {e}")
+            logger.error(f"Error logging employee login: {e}")
         finally:
             cursor.close()
 
@@ -143,13 +173,17 @@ class EmployeeTimeTracker:
         employee_id = event["employee_id"]
         terminal_id = event["terminal_id"]
         
+        logger.info(f"Processing logout event for employee {employee_id} at terminal {terminal_id}")
+        
         # Get session from Redis
         session = self._get_active_session(employee_id)
         if not session:
+            logger.warning(f"No active session found for employee {employee_id} during logout")
             return
         
         # Verify terminal_id matches
         if session.terminal_id != terminal_id:
+            logger.warning(f"Terminal mismatch for employee {employee_id}: session terminal {session.terminal_id} vs logout terminal {terminal_id}")
             return
         
         # Calculate duration
@@ -166,8 +200,9 @@ class EmployeeTimeTracker:
                 AND logout_time IS NULL
             """, (logout_time, duration, employee_id, terminal_id))
             self.db.commit()
+            logger.info(f"Employee {employee_id} logout recorded in database at terminal {terminal_id}, session duration: {duration} seconds")
         except Error as e:
-            print(f"Error logging employee logout: {e}")
+            logger.error(f"Error logging employee logout: {e}")
         finally:
             cursor.close()
         
@@ -178,18 +213,32 @@ class EmployeeTimeTracker:
         """Update last activity time for employee."""
         basket_id = event["basket_id"]
         
+        logger.debug(f"Processing item addition event for basket {basket_id}")
+        
         # Get employee_id from basket_id (this would typically come from a basket service)
         # For now, we'll just update all active sessions
         # Note: In a production environment, you'd want to get the employee_id from the basket service
+        sessions_updated = 0
         for key in self.redis_client.scan_iter("employee_session:*"):
-            session = self._get_active_session(key.decode('utf-8').split(':')[1])
+            employee_id = key.decode('utf-8').split(':')[1]
+            session = self._get_active_session(employee_id)
             if session:
                 session.last_activity = datetime.fromisoformat(event["timestamp"])
                 self._set_active_session(session.employee_id, session)
+                sessions_updated += 1
+        
+        if sessions_updated > 0:
+            logger.debug(f"Updated last activity time for {sessions_updated} active employee sessions")
 
     def process_event(self, event: dict):
         """Process incoming events."""
+        # Check if the plugin is active
+        if not check_plugin_status(PLUGIN_ID):
+            log_plugin_inactive(PLUGIN_ID, event)
+            return
+            
         event_type = event["event_type"]
+        logger.info(f"Processing event: {event_type}")
         
         if event_type == "employee_login":
             self._handle_employee_login(event)
@@ -197,25 +246,28 @@ class EmployeeTimeTracker:
             self._handle_employee_logout(event)
         elif event_type == "item_added":
             self._handle_item_addition(event)
+        else:
+            logger.debug(f"Unhandled event type: {event_type}")
 
     def run(self):
         """Main event processing loop."""
-        print("Starting Employee Time Tracker plugin...")
+        logger.info("Starting Employee Time Tracker plugin...")
         try:
             for message in self.consumer:
                 try:
                     event = message.value
                     self.process_event(event)
                 except Exception as e:
-                    print(f"Error processing message: {e}")
+                    logger.error(f"Error processing message: {e}")
                     continue
         except KeyboardInterrupt:
-            print("\nShutting down Employee Time Tracker plugin...")
+            logger.info("Shutting down Employee Time Tracker plugin...")
         finally:
             self.consumer.close()
             self.producer.close()
             self.db.close()
             self.redis_client.close()
+            logger.info("Employee Time Tracker plugin shutdown complete")
 
 if __name__ == "__main__":
     tracker = EmployeeTimeTracker()

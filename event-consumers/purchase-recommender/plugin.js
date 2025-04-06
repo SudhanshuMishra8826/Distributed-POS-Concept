@@ -1,6 +1,16 @@
 require('dotenv').config();
 const { Kafka } = require('kafkajs');
 const Redis = require('redis');
+const axios = require('axios');
+const path = require('path');
+const fs = require('fs');
+
+// Import utils from parent directory
+const utilsPath = path.join(__dirname, '..', 'utils.js');
+const { checkPluginStatus, logPluginInactive } = require(utilsPath);
+
+// Plugin ID
+const PLUGIN_ID = 'purchase-recommender';
 
 // Define recommendation rules
 const recommendationRules = [
@@ -95,6 +105,13 @@ class PurchaseRecommender {
     }
 
     async processEvent(event) {
+        // Check if the plugin is active
+        const isActive = await checkPluginStatus(PLUGIN_ID);
+        if (!isActive) {
+            logPluginInactive(PLUGIN_ID, event);
+            return;
+        }
+
         const { event_type, basket_id, item_id, quantity, price } = event;
 
         if (event_type === 'item_added') {
