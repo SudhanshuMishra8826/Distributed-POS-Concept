@@ -6,6 +6,46 @@ A modern, event-driven Point of Sale system built with microservices architectur
 
 The Distributed POS System is built on a modern event-driven architecture that decouples components and enables real-time processing of retail transactions. This architecture follows the principles of event sourcing and CQRS (Command Query Responsibility Segregation), allowing for high scalability and resilience.
 
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Infrastructure Layer                           │
+├─────────────┬─────────────┬─────────────┬─────────────┬─────────────┬───┤
+│    Kafka    │    Redis    │    MySQL    │   Docker    │   Nginx     │   │
+│  (Events)   │  (Caching)  │  (Storage)  │ (Container) │ (Reverse)   │   │
+└─────────────┴─────────────┴─────────────┴─────────────┴─────────────┴───┘
+                           ▲
+                           │
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Application Layer                              │
+├─────────────┬─────────────┬─────────────┬─────────────┬─────────────┬───┤
+│  Event      │  Plugin     │  Plugin     │  Event      │  Event      │   │
+│ Generator   │ Management  │ Manager UI  │ Consumer    │ Consumer    │   │
+│             │ Service     │ (Frontend)  │ Plugins     │ Plugins     │   │
+└─────────────┴─────────────┴─────────────┴─────────────┴─────────────┴───┘
+                           ▲
+                           │
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Plugin Layer                                  │
+├─────────────┬─────────────┬─────────────┬─────────────┬─────────────┬───┤
+│   Age       │   Fraud     │  Customer   │ Purchase    │  Employee   │   │
+│ Verification│ Detection   │   Lookup    │ Recommender │  Tracker    │   │
+└─────────────┴─────────────┴─────────────┴─────────────┴─────────────┴───┘
+```
+
+## Demo Video
+
+Watch our comprehensive demo video to see the Distributed POS System in action:
+
+[![Distributed POS System Demo](https://img.youtube.com/vi/placeholder/maxresdefault.jpg)](https://drive.google.com/file/d/17MPV1Q0F-1GJyz3o0YE_TLWRdAoxSKrP/view?usp=sharing)
+
+The video demonstrates:
+- Setting up the infrastructure services
+- Starting the backend and frontend components
+- Running the event generator
+- Activating and testing each plugin
+- Demonstrating the status check mechanism
+- Showing the caching strategy in action
+
 ### Core Components
 
 #### 1. Event Generator
@@ -40,6 +80,34 @@ The Distributed POS System is built on a modern event-driven architecture that d
 - **Redis**: In-memory data store for caching and session management
 - **MySQL**: Persistent storage for plugin metadata and transaction records
 - **Docker**: Containerization for consistent deployment across environments
+
+## Data Flow Diagram
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Event     │     │    Kafka    │     │   Plugin    │
+│ Generator   │────▶│  (Events)   │────▶│ Management  │
+└─────────────┘     └─────────────┘     │   Service   │
+                                        └─────────────┘
+                                              │
+                                              ▼
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  Customer   │     │    Redis    │     │   Plugin    │
+│   Lookup    │◀────│  (Caching)  │◀────│ Manager UI  │
+└─────────────┘     └─────────────┘     └─────────────┘
+       │
+       ▼
+┌─────────────┐     ┌─────────────┐
+│   Fraud     │     │    MySQL    │
+│ Detection   │◀────│  (Storage)  │
+└─────────────┘     └─────────────┘
+       │
+       ▼
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Age       │     │ Purchase    │     │  Employee   │
+│ Verification│     │ Recommender │     │  Tracker    │
+└─────────────┘     └─────────────┘     └─────────────┘
+```
 
 ## Philosophical Approach
 
